@@ -1,0 +1,114 @@
+id: org.quetoo.Quetoo
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: quetoo
+
+finish-args:
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /share/man
+  - '*.la'
+  - '*.a'
+
+modules:
+  - shared-modules/physfs/physfs.json
+
+  - name: Check
+    buildsystem: cmake-ninja
+    sources:
+      - type: git
+        url: https://github.com/libcheck/check.git
+        tag: 0.15.2
+        commit: 11970a7e112dfe243a2e68773f014687df2900e8
+        x-checker-data:
+          type: git
+          tag-pattern: ^([\d.]+)$
+
+  - name: Objectively
+    sources:
+      - type: git
+        url: https://github.com/WickedOldGames/Objectively.git
+        commit: 9b9c27287e3c17b7005bb43a4244f90a81e41821
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+      - type: shell
+        commands:
+          - autoreconf -vfi
+
+  - name: ObjectivelyGPU
+    sources:
+      - type: git
+        url: https://github.com/WickedOldGames/ObjectivelyGPU.git
+        commit: a1bc32eb8bf20e7fbbb31ffe43b4bcb188b70a63
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+      - type: shell
+        commands:
+          - autoreconf -vfi
+
+  - name: ObjectivelyMVC
+    sources:
+      - type: git
+        url: https://github.com/WickedOldGames/ObjectivelyMVC.git
+        commit: d5874a50a8f08d1afa94e6bdd4971a9639dc97a7
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+      - type: shell
+        commands:
+          - autoreconf -vfi
+
+  - name: Quetoo-Data
+    buildsystem: simple
+    build-commands:
+      - cp -a target /app/share/quetoo
+    sources:
+      - type: git
+        url: https://github.com/WickedOldGames/quetoo-data.git
+        commit: ff41b126bae163de0861b8b444a4c7dd65c5235b
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+          is-important: true
+
+  - name: Quetoo
+    build-options:
+      env:
+        CFLAGS: ''
+    config-opts:
+      - --enable-optimizations=expensive
+      - --disable-debug
+    sources:
+      - type: git
+        url: https://github.com/WickedOldGames/quetoo.git
+        tag: v1.0.82
+        commit: e8eb31ca912816c6bb22bafa35c1351615ab2b5c
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$
+          is-important: true
+          is-main-source: true
+      - type: shell
+        commands:
+          - autoreconf -vfi
+      - type: file
+        path: org.quetoo.Quetoo.metainfo.xml
+      - type: file
+        path: org.quetoo.Quetoo.png
+    post-install:
+      - install -Dm644 org.quetoo.Quetoo.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 org.quetoo.Quetoo.png -t /app/share/icons/hicolor/256x256/apps
+      - install -Dm644 linux/quetoo/Quetoo.desktop /app/share/applications/org.quetoo.Quetoo.desktop
+      - desktop-file-edit --set-icon=org.quetoo.Quetoo /app/share/applications/org.quetoo.Quetoo.desktop
