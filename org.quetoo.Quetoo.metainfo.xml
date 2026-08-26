@@ -4,7 +4,7 @@
   <launchable type="desktop-id">org.quetoo.Quetoo.desktop</launchable>
   <name>Quetoo</name>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-2.0+</project_license>
+  <project_license>GPL-2.0-or-later</project_license>
   <developer id="org.quetoo">
     <name>jdolan</name>
   </developer>
@@ -12,7 +12,22 @@
     <color type="primary" scheme_preference="light">#158477</color>
     <color type="primary" scheme_preference="dark">#0d4e47</color>
   </branding>
-  <summary>A free first person shooter for Mac, PC and Linux</summary>
+  <summary>Oldschool arena first-person shooter</summary>
+  <keywords>
+    <keyword>fps</keyword>
+    <keyword>shooter</keyword>
+    <keyword>deathmatch</keyword>
+    <keyword>arena</keyword>
+    <keyword>multiplayer</keyword>
+    <keyword>quake</keyword>
+    <keyword>ctf</keyword>
+    <keyword>instagib</keyword>
+  </keywords>
+  <categories>
+    <category>Game</category>
+    <category>ActionGame</category>
+    <category>Shooter</category>
+  </categories>
   <description>
     <p>
       Quetoo ("Q2") is a free first person shooter for Mac, PC and Linux.
@@ -32,6 +47,16 @@
   <url type="homepage">https://quetoo.org</url>
   <url type="bugtracker">https://github.com/WickedOldGames/quetoo/issues</url>
   <url type="vcs-browser">https://github.com/WickedOldGames/quetoo</url>
+  <url type="contribute">https://github.com/WickedOldGames/quetoo/blob/main/CONTRIBUTING.md</url>
+  <url type="contact">https://discord.gg/quetoo</url>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <internet>always</internet>
+  </recommends>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
   <screenshots>
     <screenshot type="default">
       <caption>In-game screenshot</caption>
@@ -62,10 +87,35 @@
     <content_attribute id="social-chat">intense</content_attribute>
   </content_rating>
   <releases>
-    <release version="1.0.82" date="2026-08-25"/>
-    <release version="1.0.81" date="2026-08-23"/>
-    <release version="1.0.80" date="2026-08-21"/>
-    <release version="1.0.79" date="2026-08-19"/>
-    <release version="1.0.67" date="2026-07-27"/>
+    <release version="1.0.82" date="2026-08-25">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.82</url>
+      <description>
+        <p>Renderer fixes and continued work on the GPU transfer buffer path.</p>
+      </description>
+    </release>
+    <release version="1.0.81" date="2026-08-23">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.81</url>
+      <description>
+        <p>Bug fixes and renderer improvements.</p>
+      </description>
+    </release>
+    <release version="1.0.80" date="2026-08-21">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.80</url>
+      <description>
+        <p>Bug fixes and renderer improvements.</p>
+      </description>
+    </release>
+    <release version="1.0.79" date="2026-08-19">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.79</url>
+      <description>
+        <p>Bug fixes and renderer improvements.</p>
+      </description>
+    </release>
+    <release version="1.0.67" date="2026-07-27">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.67</url>
+      <description>
+        <p>Previous Flathub release.</p>
+      </description>
+    </release>
   </releases>
 </component>

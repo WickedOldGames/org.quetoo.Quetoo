@@ -53,9 +53,46 @@ git push origin v1.0.82
 attaches them to a GitHub release. `.github/workflows/build.yml` builds both
 architectures on every push and pull request.
 
+## Where the sources come from
+
+Every module builds from the WickedOldGames organization. Those repositories
+track [jdolan](https://github.com/jdolan), which is still where day-to-day
+commits land, so they need syncing before a version bump:
+
+```bash
+gh repo sync WickedOldGames/quetoo --source jdolan/quetoo
+git clone --bare https://github.com/jdolan/quetoo.git && cd quetoo.git
+git push --tags https://github.com/WickedOldGames/quetoo.git
+```
+
+The tag push matters. `gh repo sync` and the GitHub merge-upstream API move
+branches only, so a fork can sit on the right commit while the release tag the
+manifest names is still missing.
+
 ## Bumping the Quetoo version
 
 Edit the `Quetoo` module in `org.quetoo.Quetoo.yaml`, setting `tag` and `commit`
 to the new release, then add a matching `<release>` entry at the top of
 `org.quetoo.Quetoo.metainfo.xml`. Every module carries `x-checker-data`, so
 Flathub's external data checker can propose these bumps automatically.
+
+Prefer `tag` plus `commit` over a bare commit. `ObjectivelyGPU` is the current
+exception: Quetoo v1.0.82 calls `TransferBuffer::write`, which landed after
+v0.10.0, so it is pinned to a commit until a tag ships containing it.
+
+## Relationship to Flathub
+
+The published package is [flathub/org.quetoo.Quetoo](https://github.com/flathub/org.quetoo.Quetoo),
+a separate repository maintained by the Flathub app maintainer. This repository
+does not publish there. To ship a new version on Flathub:
+
+1. Flathub's external data checker opens a bump pull request on its own, usually
+   within a day of an upstream release.
+2. That pull request gets a test build, and the bot comments with a downloadable
+   bundle.
+3. A repository maintainer merges it. The official build follows and normally
+   publishes within a couple of hours, unless a permission or AppStream change
+   sends it to moderation.
+
+Because the checker only pins to tags, an untagged upstream fix cannot reach
+Flathub. Tag the dependency first, then let the checker regenerate.

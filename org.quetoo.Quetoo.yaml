@@ -38,6 +38,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/Objectively.git
+        tag: v2.0.22
         commit: 9b9c27287e3c17b7005bb43a4244f90a81e41821
         x-checker-data:
           type: git
@@ -46,6 +47,9 @@ modules:
         commands:
           - autoreconf -vfi
 
+  # Pinned past v0.10.0 rather than to it: Quetoo v1.0.82 calls
+  # TransferBuffer::write, added after that tag. Move back to a tag once one
+  # ships containing it.
   - name: ObjectivelyGPU
     sources:
       - type: git
@@ -62,7 +66,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyMVC.git
-        commit: d5874a50a8f08d1afa94e6bdd4971a9639dc97a7
+        tag: v2.1.6
+        commit: 60e711af991e6c1255e7fc0ef45bc62b3d189df0
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -77,7 +82,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/quetoo-data.git
-        commit: ff41b126bae163de0861b8b444a4c7dd65c5235b
+        tag: v1.0.29
+        commit: b3b7a8b2024f2c99261c8a95e531f1238dd33a3d
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
