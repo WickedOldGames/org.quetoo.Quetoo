@@ -80,6 +80,41 @@ Prefer `tag` plus `commit` over a bare commit. `ObjectivelyGPU` is the current
 exception: Quetoo v1.0.82 calls `TransferBuffer::write`, which landed after
 v0.10.0, so it is pinned to a commit until a tag ships containing it.
 
+## Automated updates
+
+`.github/workflows/sync-upstream.yml` polls daily and does by itself what the
+sections above describe by hand: mirror the upstream forks, repin every module,
+record the new release in the AppStream metadata, and open a pull request. The
+build workflow runs against that branch, so a green pull request is a version
+bump that is ready to merge.
+
+Run it early with **Actions -> Sync upstream -> Run workflow**, or from a
+release hook:
+
+```bash
+gh api -X POST repos/WickedOldGames/org.quetoo.Quetoo/dispatches \
+  -f event_type=upstream-release
+```
+
+Pins only ever move forward. A module deliberately held ahead of its newest tag,
+because a fix it needs is not released yet, keeps its commit until a tag
+overtakes it. That is what stops an automatic run from undoing the ObjectivelyGPU
+pin described above.
+
+The `deps` input switches dependencies between newest tag (the default) and
+branch HEAD, for when upstream has fixed something but not yet tagged it.
+
+The workflow needs a `SYNC_TOKEN` secret: a token with write access to the
+WickedOldGames repositories. A job's built-in `GITHUB_TOKEN` is scoped to this
+repository alone and cannot push tags into the sibling forks.
+
+The script runs standalone too:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) python3 tools/sync_upstream.py --no-sync
+python3 tools/sync_upstream.py --selfcheck
+```
+
 ## Relationship to Flathub
 
 The published package is [flathub/org.quetoo.Quetoo](https://github.com/flathub/org.quetoo.Quetoo),

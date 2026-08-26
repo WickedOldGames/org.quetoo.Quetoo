@@ -1,0 +1,54 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Upstream tags releases irregularly, so poll rather than wait for a hook.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+    inputs:
+      deps:
+        description: How to pin dependencies
+        type: choice
+        options: [tags, head]
+        default: tags
+  repository_dispatch:
+    types: [upstream-release]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Mirror upstream and repin the manifest
+        id: sync
+        env:
+          # Needs write access to the sibling forks, which the job's own
+          # GITHUB_TOKEN does not have. See README, "Automated updates".
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: python3 tools/sync_upstream.py --deps '${{ inputs.deps || ''tags'' }}'
+
+      - name: Validate the metadata
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq appstream
+          appstreamcli validate org.quetoo.Quetoo.metainfo.xml
+          python3 -c "import yaml; yaml.safe_load(open('org.quetoo.Quetoo.yaml'))"
+
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: sync/upstream
+          title: 'Update to Quetoo ${{ steps.sync.outputs.version }}'
+          commit-message: 'Update to Quetoo ${{ steps.sync.outputs.version }}'
+          body: |
+            Automated by `.github/workflows/sync-upstream.yml`.
+
+            Upstream forks were mirrored, then every module was repinned. Pins
+            only ever move forward: a module held ahead of its newest tag, because
+            a needed fix is not released yet, stays put until a tag overtakes it.
+
+            The build workflow runs against this branch. Merge once it is green.
+          delete-branch: true
