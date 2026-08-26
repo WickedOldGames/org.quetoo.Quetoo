@@ -104,9 +104,15 @@ pin described above.
 The `deps` input switches dependencies between newest tag (the default) and
 branch HEAD, for when upstream has fixed something but not yet tagged it.
 
-The workflow needs a `SYNC_TOKEN` secret: a token with write access to the
-WickedOldGames repositories. A job's built-in `GITHUB_TOKEN` is scoped to this
-repository alone and cannot push tags into the sibling forks.
+The workflow needs a `SYNC_TOKEN` secret: a fine-grained token whose resource
+owner is WickedOldGames, granting **Contents: Read and write** on this repository
+and the five source forks. A job's built-in `GITHUB_TOKEN` is scoped to this
+repository alone and cannot touch the sibling forks.
+
+Contents write is deliberately the only permission. Only the newest release tag
+is mirrored, because creating a ref at an older commit whose `.github/workflows`
+content differs from the branch would additionally require Workflows write, and
+the manifest never references those older tags anyway.
 
 The script runs standalone too:
 

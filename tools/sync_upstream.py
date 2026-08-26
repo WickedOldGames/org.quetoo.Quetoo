@@ -35,7 +35,9 @@ TAG_RE: Final = re.compile(r"^v(\d+(?:\.\d+)*)$")
 
 
 class GitHubError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ def request(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         with urllib.request.urlopen(req, timeout=60) as resp:
             return json.load(resp) if resp.status != 204 else None
     except urllib.error.HTTPError as exc:
-        raise GitHubError(f"{method} {path} -> {exc.code}: {exc.read()[:300]!r}") from exc
+        raise GitHubError(f"{method} {path} -> {exc.code}: {exc.read()[:300]!r}", exc.code) from exc
 
 
 def peel(repo: str, ref: dict[str, Any]) -> str:
@@ -99,24 +101,43 @@ def sync_fork(name: str) -> None:
         result = request("POST", f"/repos/{fork}/merge-upstream", {"branch": branch})
         print(f"  {name}: branch {branch} {result['merge_type']}")
     except GitHubError as exc:
-        # A fork already level with upstream reports a conflict, not an error.
-        print(f"  {name}: branch not advanced ({exc})")
+        # A fork already level with upstream reports 409, which is fine. Anything
+        # else, and 403 above all, means the token cannot do its job: fail loudly
+        # rather than reporting a no-op run as a success.
+        if exc.status != 409:
+            raise
+        print(f"  {name}: branch {branch} already current")
 
+    # Mirror only the newest release tag. The manifest never references older
+    # ones, and creating a ref at an ancient commit whose .github/workflows
+    # content differs from the branch needs Workflows write, a permission this
+    # job has no business holding.
     have = {t["name"] for t in request("GET", f"/repos/{fork}/tags?per_page=100")}
-    added = 0
-    for tag in request("GET", f"/repos/{upstream}/tags?per_page=100"):
-        if tag["name"] in have or not TAG_RE.match(tag["name"]):
-            continue
-        try:
-            request(
-                "POST",
-                f"/repos/{fork}/git/refs",
-                {"ref": f"refs/tags/{tag['name']}", "sha": tag["commit"]["sha"]},
-            )
-            added += 1
-        except GitHubError as exc:
-            print(f"  {name}: could not create {tag['name']} ({exc})", file=sys.stderr)
-    print(f"  {name}: {added} tag(s) mirrored")
+    upstream_tags = [
+        t for t in request("GET", f"/repos/{upstream}/tags?per_page=100") if TAG_RE.match(t["name"])
+    ]
+    if not upstream_tags:
+        raise GitHubError(f"{upstream} has no v-prefixed tags")
+
+    def version(tag: dict[str, Any]) -> list[int]:
+        match = TAG_RE.match(tag["name"])
+        assert match is not None
+        return [int(part) for part in match.group(1).split(".")]
+
+    newest = max(upstream_tags, key=version)
+    if newest["name"] in have:
+        print(f"  {name}: {newest['name']} already present")
+    else:
+        request(
+            "POST",
+            f"/repos/{fork}/git/refs",
+            {"ref": f"refs/tags/{newest['name']}", "sha": newest["commit"]["sha"]},
+        )
+        print(f"  {name}: mirrored {newest['name']}")
+
+    skipped = sorted(t["name"] for t in upstream_tags if t["name"] not in have | {newest["name"]})
+    if skipped:
+        print(f"  {name}: not mirrored, not needed: {', '.join(skipped)}")
 
 
 def resolve_pin(name: str, prefer_head: bool) -> Pin:

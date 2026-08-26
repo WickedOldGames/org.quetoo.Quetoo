@@ -30,7 +30,9 @@ jobs:
           # Needs write access to the sibling forks, which the job's own
           # GITHUB_TOKEN does not have. See README, "Automated updates".
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: python3 tools/sync_upstream.py --deps '${{ inputs.deps || ''tags'' }}'
+          # Empty on schedule and repository_dispatch, so default here.
+          DEPS: ${{ inputs.deps || 'tags' }}
+        run: python3 tools/sync_upstream.py --deps "$DEPS"
 
       - name: Validate the metadata
         run: |
