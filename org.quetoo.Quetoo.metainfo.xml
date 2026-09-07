@@ -87,6 +87,12 @@
     <content_attribute id="social-chat">intense</content_attribute>
   </content_rating>
   <releases>
+    <release version="1.0.86" date="2026-09-03">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.86</url>
+      <description>
+        <p>Say why SDL3 is pinned to 3.4.12; Build macOS for Apple Silicon only, in one job.</p>
+      </description>
+    </release>
     <release version="1.0.82" date="2026-08-25">
       <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.82</url>
       <description>
