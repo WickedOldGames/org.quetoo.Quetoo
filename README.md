@@ -76,9 +76,11 @@ to the new release, then add a matching `<release>` entry at the top of
 `org.quetoo.Quetoo.metainfo.xml`. Every module carries `x-checker-data`, so
 Flathub's external data checker can propose these bumps automatically.
 
-Prefer `tag` plus `commit` over a bare commit. `ObjectivelyGPU` is the current
-exception: Quetoo v1.0.82 calls `TransferBuffer::write`, which landed after
-v0.10.0, so it is pinned to a commit until a tag ships containing it.
+Prefer `tag` plus `commit` over a bare commit.
+
+Dependency tags are the newest ones published at or before the Quetoo release.
+Later ObjectivelyMVC tags are not API-compatible: 2.3.0 added a `data` argument
+to `View::updateBindings`, and Quetoo 1.0.86 still calls the one-argument form.
 
 ## Automated updates
 
@@ -96,10 +98,9 @@ gh api -X POST repos/WickedOldGames/org.quetoo.Quetoo/dispatches \
   -f event_type=upstream-release
 ```
 
-Pins only ever move forward. A module deliberately held ahead of its newest tag,
-because a fix it needs is not released yet, keeps its commit until a tag
-overtakes it. That is what stops an automatic run from undoing the ObjectivelyGPU
-pin described above.
+An untagged pin that is still ahead of the cutoff tag, because a fix it needs
+is not in that tag yet, is left alone. A newer tag than the cutoff, left by a
+previous overshoot, moves back.
 
 The `deps` input switches dependencies between newest tag (the default) and
 branch HEAD, for when upstream has fixed something but not yet tagged it.

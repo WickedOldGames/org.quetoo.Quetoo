@@ -38,8 +38,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/Objectively.git
-        tag: v2.0.22
-        commit: 9b9c27287e3c17b7005bb43a4244f90a81e41821
+        tag: v2.2.0
+        commit: dc73d68cfe3db2c008cf455e32ba01a0bc3253ba
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -47,14 +47,12 @@ modules:
         commands:
           - autoreconf -vfi
 
-  # Pinned past v0.10.0 rather than to it: Quetoo v1.0.82 calls
-  # TransferBuffer::write, added after that tag. Move back to a tag once one
-  # ships containing it.
   - name: ObjectivelyGPU
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyGPU.git
-        commit: a1bc32eb8bf20e7fbbb31ffe43b4bcb188b70a63
+        tag: v2.2.0
+        commit: 19c663a61a1cf77ef8070381837fdd96cb8b39a6
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -62,12 +60,14 @@ modules:
         commands:
           - autoreconf -vfi
 
+  # v2.3.0 adds a data argument to View::updateBindings. Quetoo 1.0.86 still
+  # calls the one-argument form; 2.2.3 is the last tag that matches.
   - name: ObjectivelyMVC
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyMVC.git
-        tag: v2.1.6
-        commit: 60e711af991e6c1255e7fc0ef45bc62b3d189df0
+        tag: v2.2.3
+        commit: 8bbdbd2085a2ee8486686fc9e2c1119f15db0d04
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -82,8 +82,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/quetoo-data.git
-        tag: v1.0.29
-        commit: b3b7a8b2024f2c99261c8a95e531f1238dd33a3d
+        tag: v1.0.31
+        commit: c2261486776626473e4162a5569b64f971b39021
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -99,8 +99,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/quetoo.git
-        tag: v1.0.82
-        commit: e8eb31ca912816c6bb22bafa35c1351615ab2b5c
+        tag: v1.0.86
+        commit: 964a2c33142db3e4a93e64862220f28ef1874668
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$

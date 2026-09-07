@@ -187,12 +187,37 @@ def merge_keeping_workflows(name: str, branch: str) -> None:
     print(f"  {name}: branch {branch} merged (workflows kept)")
 
 
-def newest_tag(repo: str) -> tuple[str, str]:
-    """Highest version-sorted tag in repo, and the commit it points at."""
+def not_after(when: str, before: str | None) -> bool:
+    """True if `when` is at or before `before`. GitHub timestamps compare as text."""
+    return before is None or when <= before
+
+
+def tag_time(repo: str, tag: dict[str, Any]) -> str:
+    """Release published_at if GitHub has one, otherwise the tagged commit's date."""
+    try:
+        return str(request("GET", f"/repos/{repo}/releases/tags/{tag['name']}")["published_at"])
+    except GitHubError as exc:
+        if exc.status != 404:
+            raise
+    return str(request("GET", f"/repos/{repo}/commits/{tag['commit']['sha']}")["commit"]["committer"]["date"])
+
+
+def newest_tag(repo: str, before: str | None = None) -> tuple[str, str]:
+    """Highest version-sorted tag in repo, and the commit it points at.
+
+    `before` is an ISO timestamp. Dependency pins use the Quetoo release time so
+    a newer library tag cannot break an older game tag. ObjectivelyMVC 2.3.0
+    added a data argument to View::updateBindings; Quetoo 1.0.86 still calls
+    the one-argument form.
+    """
     tags = request("GET", f"/repos/{repo}/tags?per_page=100")
     versioned = [t for t in tags if TAG_RE.match(t["name"])]
+    if before:
+        versioned = [t for t in versioned if not_after(tag_time(repo, t), before)]
     if not versioned:
-        raise GitHubError(f"{repo} has no v-prefixed tags")
+        raise GitHubError(
+            f"{repo} has no v-prefixed tags" + (f" at or before {before}" if before else "")
+        )
 
     def key(tag: dict[str, Any]) -> list[int]:
         match = TAG_RE.match(tag["name"])
@@ -278,18 +303,18 @@ def commit_exists(repo: str, sha: str) -> bool:
         raise
 
 
-def resolve_pin(name: str, prefer_head: bool) -> Pin:
+def resolve_pin(name: str, prefer_head: bool, before: str | None = None) -> Pin:
     """Pick the commit to build. Tags are preferred; HEAD is the escape hatch."""
     fork = f"{FORK}/{name}"
     # Prefer the newest upstream release. After a workflow-preserving merge the
     # commit is on the fork even when the tag ref could not be created.
-    tag, tag_commit = newest_tag(f"{UPSTREAM}/{name}")
+    tag, tag_commit = newest_tag(f"{UPSTREAM}/{name}", before=None if prefer_head else before)
     fork_tags = {t["name"] for t in request("GET", f"/repos/{fork}/tags?per_page=100")}
     if tag not in fork_tags:
         if commit_exists(fork, tag_commit):
             tag = None
         else:
-            tag, tag_commit = newest_tag(fork)
+            tag, tag_commit = newest_tag(fork, before=None if prefer_head else before)
     if not prefer_head:
         return Pin(commit=tag_commit, tag=tag)
 
@@ -404,16 +429,31 @@ def main() -> int:
     existing = current_pins(manifest)
 
     pins: dict[str, Pin] = {}
+    main_repo = MODULES[MAIN_MODULE]
+    main_candidate = resolve_pin(main_repo, prefer_head=False)
+    cutoff = None
+    if main_candidate.tag:
+        cutoff = str(
+            request("GET", f"/repos/{UPSTREAM}/{main_repo}/releases/tags/{main_candidate.tag}")[
+                "published_at"
+            ]
+        )
+
     for module, repo in MODULES.items():
         # The game itself always tracks a tagged release; only its dependencies
         # ever need the HEAD escape hatch.
         prefer_head = args.deps == "head" and module != MAIN_MODULE
-        candidate = resolve_pin(repo, prefer_head)
+        if module == MAIN_MODULE:
+            candidate = main_candidate
+        else:
+            candidate = resolve_pin(repo, prefer_head, before=cutoff)
         held = existing[module]
-        # Never move a pin backwards. A module deliberately pinned ahead of its
-        # newest tag, because a needed fix is not released yet, must survive
-        # until a tag actually overtakes it.
-        if is_ahead(f"{FORK}/{repo}", candidate.commit, held):
+        # Keep an untagged pin that is still ahead of the chosen tag, because a
+        # needed fix is not in that tag yet. A newer tag than the cutoff, left
+        # by a previous overshoot, must move back.
+        if is_ahead(f"{FORK}/{repo}", candidate.commit, held) and (
+            prefer_head or candidate.tag is None
+        ):
             print(f"  {module}: keeping {held[:10]}, ahead of {candidate.tag or 'HEAD'}")
             pins[module] = Pin(commit=held, tag=None)
             continue
@@ -498,6 +538,10 @@ def _selfcheck() -> None:
     assert release_summary(changelog, "1.0.86") == "Pin SDL3 < 3.5; Apple Silicon only."
     assert release_summary(badge, "1.0.86") == "Quetoo 1.0.86."
     assert release_summary("", "1.0.1") == "Quetoo 1.0.1."
+
+    assert not_after("2026-09-03T03:13:17Z", "2026-09-03T22:03:48Z")
+    assert not not_after("2026-09-04T18:00:47Z", "2026-09-03T22:03:48Z")
+    assert not_after("2026-09-07T00:00:00Z", None)
 
     workflow_422 = GitHubError(
         'POST /repos/WickedOldGames/quetoo/merge-upstream -> 422: b\'{"message":'
