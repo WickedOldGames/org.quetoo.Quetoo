@@ -38,8 +38,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/Objectively.git
-        tag: v2.2.1
-        commit: c1703280622db5d4ad86c99abbc6bd57b591e903
+        tag: v2.2.0
+        commit: dc73d68cfe3db2c008cf455e32ba01a0bc3253ba
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -47,15 +47,12 @@ modules:
         commands:
           - autoreconf -vfi
 
-  # Pinned past v0.10.0 rather than to it: Quetoo v1.0.82 calls
-  # TransferBuffer::write, added after that tag. Move back to a tag once one
-  # ships containing it.
   - name: ObjectivelyGPU
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyGPU.git
-        tag: v2.2.1
-        commit: aac0794126516b97b5db0297effa14ee47012725
+        tag: v2.2.0
+        commit: 19c663a61a1cf77ef8070381837fdd96cb8b39a6
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -63,12 +60,14 @@ modules:
         commands:
           - autoreconf -vfi
 
+  # v2.3.0 adds a data argument to View::updateBindings. Quetoo 1.0.86 still
+  # calls the one-argument form; 2.2.3 is the last tag that matches.
   - name: ObjectivelyMVC
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyMVC.git
-        tag: v2.4.4
-        commit: 016d8dbfb122cf4bd7efa74e4f373b1fab18084b
+        tag: v2.2.3
+        commit: 8bbdbd2085a2ee8486686fc9e2c1119f15db0d04
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
