@@ -32,6 +32,7 @@ MODULES: Final[dict[str, str]] = {
 }
 MAIN_MODULE: Final = "Quetoo"
 TAG_RE: Final = re.compile(r"^v(\d+(?:\.\d+)*)$")
+WORKFLOWS: Final = ".github/workflows"
 
 
 class GitHubError(RuntimeError):
@@ -72,6 +73,117 @@ def peel(repo: str, ref: dict[str, Any]) -> str:
     return str(request("GET", f"/repos/{repo}/git/tags/{ref['object']['sha']}")["object"]["sha"])
 
 
+def is_workflow_permission_error(exc: GitHubError) -> bool:
+    """True when GitHub refused a ref update that would rewrite workflow files."""
+    if exc.status != 422:
+        return False
+    text = str(exc).lower()
+    return "workflow" in text and ("scope" in text or "permission" in text)
+
+
+def swap_tree_entry(entries: list[dict[str, Any]], path: str, sha: str) -> list[dict[str, Any]]:
+    """Copy a Git tree list, pointing `path` at `sha`. Other entries are unchanged."""
+    out: list[dict[str, Any]] = []
+    found = False
+    for entry in entries:
+        item = {key: entry[key] for key in ("path", "mode", "type", "sha")}
+        if item["path"] == path:
+            item["sha"] = sha
+            found = True
+        out.append(item)
+    if not found:
+        raise GitHubError(f"{path} is not in this tree")
+    return out
+
+
+def tree_sha_at(repo: str, root: str, path: str) -> str | None:
+    """SHA of the tree or blob at `path` under `root`, or None if a component is missing."""
+    sha = root
+    for part in path.split("/"):
+        data = request("GET", f"/repos/{repo}/git/trees/{sha}")
+        if data.get("truncated"):
+            raise GitHubError(f"tree {sha} in {repo} is truncated")
+        entry = next((item for item in data["tree"] if item["path"] == part), None)
+        if entry is None:
+            return None
+        sha = str(entry["sha"])
+    return sha
+
+
+def replace_workflows(repo: str, upstream_root: str, workflows_sha: str) -> str:
+    """Upstream root tree, with `.github/workflows` replaced by `workflows_sha`."""
+    github = tree_sha_at(repo, upstream_root, ".github")
+    if github is None:
+        raise GitHubError(f"{repo} upstream tree has no .github")
+    new_github = str(
+        request(
+            "POST",
+            f"/repos/{repo}/git/trees",
+            {
+                "base_tree": github,
+                "tree": [{"path": "workflows", "mode": "040000", "type": "tree", "sha": workflows_sha}],
+            },
+        )["sha"]
+    )
+    return str(
+        request(
+            "POST",
+            f"/repos/{repo}/git/trees",
+            {
+                "base_tree": upstream_root,
+                "tree": [{"path": ".github", "mode": "040000", "type": "tree", "sha": new_github}],
+            },
+        )["sha"]
+    )
+
+
+def merge_keeping_workflows(name: str, branch: str) -> None:
+    """Merge upstream into the fork without rewriting `.github/workflows`.
+
+    merge-upstream applies every upstream commit, so a Contents-only token is
+    refused when any of those commits touch workflow files. A merge commit whose
+    tree is upstream plus the fork's existing workflows has a tip-to-tip diff
+    that does not change those files, which is enough for Contents write.
+    Forks share Git objects with upstream, so the Git Data API on the fork can
+    read the upstream commit without cloning. quetoo-data is multiple gigabytes;
+    cloning it in CI is not an option.
+    """
+    fork = f"{FORK}/{name}"
+    fork_head = str(request("GET", f"/repos/{fork}/commits/{branch}")["sha"])
+    up_head = str(request("GET", f"/repos/{UPSTREAM}/{name}/commits/{branch}")["sha"])
+    if fork_head == up_head:
+        print(f"  {name}: branch {branch} already current")
+        return
+
+    fork_commit = request("GET", f"/repos/{fork}/git/commits/{fork_head}")
+    # Read the upstream commit through the fork: the fork network already has
+    # the object, and posting trees has to happen on the fork anyway.
+    up_commit = request("GET", f"/repos/{fork}/git/commits/{up_head}")
+    fork_tree = str(fork_commit["tree"]["sha"])
+    up_tree = str(up_commit["tree"]["sha"])
+    workflows = tree_sha_at(fork, fork_tree, WORKFLOWS)
+    if workflows is None:
+        raise GitHubError(
+            f"{fork} has no {WORKFLOWS}; cannot sync past a workflow-file "
+            "change without Workflows write on SYNC_TOKEN"
+        )
+    tree = replace_workflows(fork, up_tree, workflows)
+    commit = request(
+        "POST",
+        f"/repos/{fork}/git/commits",
+        {
+            "message": (
+                f"Merge {UPSTREAM}/{name} {branch} into {branch}, "
+                "keeping this fork's GitHub Actions workflows"
+            ),
+            "tree": tree,
+            "parents": [fork_head, up_head],
+        },
+    )
+    request("PATCH", f"/repos/{fork}/git/refs/heads/{branch}", {"sha": commit["sha"]})
+    print(f"  {name}: branch {branch} merged (workflows kept)")
+
+
 def newest_tag(repo: str) -> tuple[str, str]:
     """Highest version-sorted tag in repo, and the commit it points at."""
     tags = request("GET", f"/repos/{repo}/tags?per_page=100")
@@ -101,12 +213,17 @@ def sync_fork(name: str) -> None:
         result = request("POST", f"/repos/{fork}/merge-upstream", {"branch": branch})
         print(f"  {name}: branch {branch} {result['merge_type']}")
     except GitHubError as exc:
-        # A fork already level with upstream reports 409, which is fine. Anything
-        # else, and 403 above all, means the token cannot do its job: fail loudly
-        # rather than reporting a no-op run as a success.
-        if exc.status != 409:
+        # 409: already current. 422 with a workflow-scope message: upstream
+        # changed `.github/workflows` and this token is Contents-only, so replay
+        # the merge without those files. Anything else, 403 above all, means
+        # the token cannot do its job: fail loudly rather than reporting a
+        # no-op run as a success.
+        if exc.status == 409:
+            print(f"  {name}: branch {branch} already current")
+        elif is_workflow_permission_error(exc):
+            merge_keeping_workflows(name, branch)
+        else:
             raise
-        print(f"  {name}: branch {branch} already current")
 
     # Mirror only the newest release tag. The manifest never references older
     # ones, and creating a ref at an ancient commit whose .github/workflows
@@ -128,22 +245,48 @@ def sync_fork(name: str) -> None:
     if newest["name"] in have:
         print(f"  {name}: {newest['name']} already present")
     else:
-        request(
-            "POST",
-            f"/repos/{fork}/git/refs",
-            {"ref": f"refs/tags/{newest['name']}", "sha": newest["commit"]["sha"]},
-        )
-        print(f"  {name}: mirrored {newest['name']}")
+        try:
+            request(
+                "POST",
+                f"/repos/{fork}/git/refs",
+                {"ref": f"refs/tags/{newest['name']}", "sha": newest["commit"]["sha"]},
+            )
+            print(f"  {name}: mirrored {newest['name']}")
+        except GitHubError as exc:
+            if not is_workflow_permission_error(exc):
+                raise
+            print(
+                f"  {name}: {newest['name']} not mirrored "
+                "(tag commit has workflow files this token cannot write)"
+            )
 
     skipped = sorted(t["name"] for t in upstream_tags if t["name"] not in have | {newest["name"]})
     if skipped:
         print(f"  {name}: not mirrored, not needed: {', '.join(skipped)}")
 
 
+def commit_exists(repo: str, sha: str) -> bool:
+    try:
+        request("GET", f"/repos/{repo}/git/commits/{sha}")
+        return True
+    except GitHubError as exc:
+        if exc.status == 404:
+            return False
+        raise
+
+
 def resolve_pin(name: str, prefer_head: bool) -> Pin:
     """Pick the commit to build. Tags are preferred; HEAD is the escape hatch."""
     fork = f"{FORK}/{name}"
-    tag, tag_commit = newest_tag(fork)
+    # Prefer the newest upstream release. After a workflow-preserving merge the
+    # commit is on the fork even when the tag ref could not be created.
+    tag, tag_commit = newest_tag(f"{UPSTREAM}/{name}")
+    fork_tags = {t["name"] for t in request("GET", f"/repos/{fork}/tags?per_page=100")}
+    if tag not in fork_tags:
+        if commit_exists(fork, tag_commit):
+            tag = None
+        else:
+            tag, tag_commit = newest_tag(fork)
     if not prefer_head:
         return Pin(commit=tag_commit, tag=tag)
 
@@ -257,9 +400,9 @@ def main() -> int:
         handle.write(manifest)
 
     main_pin = pins[MAIN_MODULE]
-    assert main_pin.tag is not None
-    version = main_pin.tag.lstrip("v")
-    release = request("GET", f"/repos/{UPSTREAM}/quetoo/releases/tags/{main_pin.tag}")
+    release_tag = main_pin.tag or newest_tag(f"{UPSTREAM}/quetoo")[0]
+    version = release_tag.lstrip("v")
+    release = request("GET", f"/repos/{UPSTREAM}/quetoo/releases/tags/{release_tag}")
     date = str(release["published_at"])[:10]
     notes = (release.get("body") or "").strip().splitlines()
     summary = notes[0].strip() if notes else f"Quetoo {version}."
@@ -318,6 +461,35 @@ def _selfcheck() -> None:
     added = add_release(meta, "1.0.82", "2026-08-25", "Renderer fixes.")
     assert added.index("1.0.82") < added.index("1.0.67"), "newest release goes first"
     assert add_release(added, "1.0.82", "2026-08-25", "x") == added, "must be idempotent"
+
+    workflow_422 = GitHubError(
+        'POST /repos/WickedOldGames/quetoo/merge-upstream -> 422: b\'{"message":'
+        '"refusing to allow a Personal Access Token to create or update workflow '
+        '`.github/workflows/build.yml` without `workflow` scope"}\'',
+        422,
+    )
+    assert is_workflow_permission_error(workflow_422)
+    assert not is_workflow_permission_error(GitHubError("already merged", 409))
+    assert not is_workflow_permission_error(GitHubError("Merge conflict", 422))
+
+    swapped = swap_tree_entry(
+        [
+            {"path": ".github", "mode": "040000", "type": "tree", "sha": "aaa", "size": 0},
+            {"path": "src", "mode": "040000", "type": "tree", "sha": "bbb"},
+        ],
+        ".github",
+        "ccc",
+    )
+    assert swapped == [
+        {"path": ".github", "mode": "040000", "type": "tree", "sha": "ccc"},
+        {"path": "src", "mode": "040000", "type": "tree", "sha": "bbb"},
+    ]
+    try:
+        swap_tree_entry(swapped, "missing", "ddd")
+    except GitHubError as exc:
+        assert "missing" in str(exc)
+    else:
+        raise AssertionError("swap_tree_entry must reject a path that is not present")
     print("selfcheck ok")
 
 

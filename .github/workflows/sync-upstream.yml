@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Self-check the sync script
+        run: python3 tools/sync_upstream.py --selfcheck
+
       - name: Mirror upstream and repin the manifest
         id: sync
         env:
