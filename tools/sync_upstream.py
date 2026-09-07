@@ -9,6 +9,7 @@ metadata. Intended to run from CI, but it works standalone given GITHUB_TOKEN.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -33,6 +34,8 @@ MODULES: Final[dict[str, str]] = {
 MAIN_MODULE: Final = "Quetoo"
 TAG_RE: Final = re.compile(r"^v(\d+(?:\.\d+)*)$")
 WORKFLOWS: Final = ".github/workflows"
+CHANGELOG_HEADING: Final = re.compile(r"^##\s+Changelog\s*$", re.I)
+CHANGELOG_ITEM: Final = re.compile(r"^- (?:\[[^\]]+\]\([^)]+\) )?(.+)$")
 
 
 class GitHubError(RuntimeError):
@@ -339,15 +342,37 @@ def apply_pins(manifest: str, pins: dict[str, Pin]) -> str:
     return manifest
 
 
+def release_summary(body: str, version: str) -> str:
+    """Plain-text AppStream blurb. GitHub notes open with download badges."""
+    bullets: list[str] = []
+    in_changelog = False
+    for raw in (body or "").splitlines():
+        line = raw.strip()
+        if CHANGELOG_HEADING.match(line):
+            in_changelog = True
+            continue
+        if not in_changelog:
+            continue
+        if line.startswith("## "):
+            break
+        match = CHANGELOG_ITEM.match(line)
+        if match:
+            bullets.append(match.group(1).strip().rstrip("."))
+        if len(bullets) == 2:
+            break
+    return f"{'; '.join(bullets)}." if bullets else f"Quetoo {version}."
+
+
 def add_release(metainfo: str, version: str, date: str, notes: str) -> str:
     """Prepend a release entry, unless this version is already recorded."""
     if f'<release version="{version}"' in metainfo:
         return metainfo
+    safe = html.escape(notes, quote=False)
     entry = (
         f'    <release version="{version}" date="{date}">\n'
         f'      <url type="details">https://github.com/{FORK}/quetoo/releases/tag/v{version}</url>\n'
         f"      <description>\n"
-        f"        <p>{notes}</p>\n"
+        f"        <p>{safe}</p>\n"
         f"      </description>\n"
         f"    </release>\n"
     )
@@ -404,8 +429,7 @@ def main() -> int:
     version = release_tag.lstrip("v")
     release = request("GET", f"/repos/{UPSTREAM}/quetoo/releases/tags/{release_tag}")
     date = str(release["published_at"])[:10]
-    notes = (release.get("body") or "").strip().splitlines()
-    summary = notes[0].strip() if notes else f"Quetoo {version}."
+    summary = release_summary(str(release.get("body") or ""), version)
     # Read fully before opening for write: nesting the two truncates the file.
     with open(metainfo_path) as handle:
         metainfo = add_release(handle.read(), version, date, summary)
@@ -461,6 +485,19 @@ def _selfcheck() -> None:
     added = add_release(meta, "1.0.82", "2026-08-25", "Renderer fixes.")
     assert added.index("1.0.82") < added.index("1.0.67"), "newest release goes first"
     assert add_release(added, "1.0.82", "2026-08-25", "x") == added, "must be idempotent"
+    escaped = add_release(meta, "1.0.86", "2026-09-03", "Pin SDL3 < 3.5 & ship it.")
+    assert "<p>Pin SDL3 &lt; 3.5 &amp; ship it.</p>" in escaped, escaped
+
+    badge = "## ![Windows](https://img.shields.io/badge/-%20-0078D6?style=flat-square&logo=x) Windows"
+    changelog = (
+        f"{badge}\n\n## Changelog\n"
+        "- [`abc`](http://x) Pin SDL3 < 3.5\n"
+        "- [`def`](http://x) Apple Silicon only\n"
+        "- [`ghi`](http://x) ignored third\n"
+    )
+    assert release_summary(changelog, "1.0.86") == "Pin SDL3 < 3.5; Apple Silicon only."
+    assert release_summary(badge, "1.0.86") == "Quetoo 1.0.86."
+    assert release_summary("", "1.0.1") == "Quetoo 1.0.1."
 
     workflow_422 = GitHubError(
         'POST /repos/WickedOldGames/quetoo/merge-upstream -> 422: b\'{"message":'
