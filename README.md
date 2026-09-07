@@ -114,6 +114,13 @@ is mirrored, because creating a ref at an older commit whose `.github/workflows`
 content differs from the branch would additionally require Workflows write, and
 the manifest never references those older tags anyway.
 
+The same restriction hits `merge-upstream` when upstream's default branch itself
+changes workflow files. The job then builds a merge commit through the Git Data
+API whose tree is upstream plus this fork's existing `.github/workflows`, so the
+branch advances without Workflows write. The fork's workflow files stay as they
+were until the token is granted that permission. If the tag ref cannot be
+created either, the manifest pins the release commit anyway.
+
 The script runs standalone too:
 
 ```bash
