@@ -87,6 +87,12 @@
     <content_attribute id="social-chat">intense</content_attribute>
   </content_rating>
   <releases>
+    <release version="1.0.101" date="2026-09-17">
+      <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.101</url>
+      <description>
+        <p>Fix the Windows update apply, which never matched any staged file.</p>
+      </description>
+    </release>
     <release version="1.0.86" date="2026-09-03">
       <url type="details">https://github.com/WickedOldGames/quetoo/releases/tag/v1.0.86</url>
       <description>
