@@ -38,8 +38,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/Objectively.git
-        tag: v2.2.0
-        commit: dc73d68cfe3db2c008cf455e32ba01a0bc3253ba
+        tag: v2.2.1
+        commit: c1703280622db5d4ad86c99abbc6bd57b591e903
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -51,8 +51,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyGPU.git
-        tag: v2.2.0
-        commit: 19c663a61a1cf77ef8070381837fdd96cb8b39a6
+        tag: v2.2.4
+        commit: 2e758564c813934433081bac9057237731d23aa0
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -66,8 +66,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/ObjectivelyMVC.git
-        tag: v2.2.3
-        commit: 8bbdbd2085a2ee8486686fc9e2c1119f15db0d04
+        tag: v2.5.3
+        commit: 5fa1a996584fd6ed3284b9ff28950f888435c9e3
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -82,8 +82,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/quetoo-data.git
-        tag: v1.0.31
-        commit: c2261486776626473e4162a5569b64f971b39021
+        tag: v1.0.38
+        commit: 7db48414c9490773c63f7785273efa6bdf557846
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
@@ -99,8 +99,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/WickedOldGames/quetoo.git
-        tag: v1.0.86
-        commit: 964a2c33142db3e4a93e64862220f28ef1874668
+        tag: v1.0.101
+        commit: cdf52f5fb00414ea757c5fe3328ae50a35239916
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
